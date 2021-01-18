@@ -1,61 +1,51 @@
-const syslog = require("syslog-client");
+const syslog = require("modern-syslog");
 
 class SyslogHandler {
     constructor(opts) {
-        // See https://github.com/paulgrove/node-syslog-client#syslogtransport
+        // See https://github.com/strongloop/modern-syslog
+        // for more info about the flags
         this.cfg = Object.assign({
-            target: "127.0.0.1",
-            // port: 514,
-            transport: syslog.Transport.Udp,
-            facility: syslog.Facility.Local0,
-            severity: syslog.Severity.Informational,
-            // appName: process.title,
-            // rfc3164: false
+            ident: process.title,
+            flags: syslog.LOG_PID,
+            facility: syslog.LOG_LOCAL0,
         }, opts);
 
         console.log(this.cfg);
 
-        if (typeof this.cfg.transport === "string") {
-            this.cfg.transport = syslog.Transport[this.cfg.transport];
-        }
-        if (typeof this.cfg.facility === "string") {
-            this.cfg.facility = syslog.Facility[this.cfg.facility];
-        }
-        if (typeof this.cfg.severity === "string") {
-            this.cfg.severity = syslog.Severity[this.cfg.severity];
-        }
-
-        this.client = syslog.createClient(this.cfg.target, this.cfg);
-        this.client.on("error", console.error);
+        syslog.open(this.cfg.ident, this.cfg.flags, this.cfg.facility);
     }
 
     handleLog(logMsg) {
         const opts = {};
 
+        // TODO: Test the performance impact of a switch lookup table vs.
+        // a dictionary based one.
+        let level = syslog.level.LOG_INFO;
         switch (logMsg.level) {
         case logMsg.logger.LEVEL_ERROR:
-            opts.severity = syslog.Severity.Error;
+            level = syslog.level.LOG_ERR;
             break;
 
         case logMsg.logger.LEVEL_WARN:
-            opts.severity = syslog.Severity.Warning;
+            level = syslog.level.LOG_WARNING;
             break;
 
         case logMsg.logger.LEVEL_INFO:
-            opts.severity = syslog.Severity.Informational;
+            level = syslog.level.LOG_INFO;
             break;
 
         case logMsg.logger.LEVEL_DEBUG:
-            opts.severity = syslog.Severity.Debug;
+            level = syslog.level.LOG_DEBUG;
             break;
         }
 
-        opts.timestamp = logMsg.date;
-
         const msg = logMsg.getPlainMessage();
-        this.client.log(msg, opts);
-        // console.log(msg);
+        syslog.log(level, msg);
+        console.log(level, " = ", msg);
     }
 }
+
+SyslogHandler.flag = syslog.option;
+SyslogHandler.facility = syslog.facility;
 
 module.exports = SyslogHandler;
